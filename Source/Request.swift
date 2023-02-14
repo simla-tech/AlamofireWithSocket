@@ -1534,6 +1534,7 @@ public final class WebSocketRequest: Request {
         task as? URLSessionWebSocketTask
     }
 
+    public var pingTimeInterval: TimeInterval?
     public let convertible: URLRequestConvertible
     public let `protocol`: String?
     public let maximumMessageSize: Int
@@ -1542,6 +1543,7 @@ public final class WebSocketRequest: Request {
          convertible: URLRequestConvertible,
          protocol: String? = nil,
          maximumMessageSize: Int,
+         pingTimeInterval: TimeInterval?,
          underlyingQueue: DispatchQueue,
          serializationQueue: DispatchQueue,
          eventMonitor: EventMonitor?,
@@ -1550,7 +1552,7 @@ public final class WebSocketRequest: Request {
         self.convertible = convertible
         self.protocol = `protocol`
         self.maximumMessageSize = maximumMessageSize
-
+        self.pingTimeInterval = pingTimeInterval
         super.init(id: id,
                    underlyingQueue: underlyingQueue,
                    serializationQueue: serializationQueue,
@@ -1637,7 +1639,9 @@ public final class WebSocketRequest: Request {
                 handler.queue.async { handler.handler(.connected(protocol: `protocol`)) }
             }
         }
-        startTimedPing()
+        if let pingTimeInterval {
+            startTimedPing(timeInterval: pingTimeInterval)
+        }
     }
     
     /// Response to a sent ping.
@@ -1662,30 +1666,28 @@ public final class WebSocketRequest: Request {
             return
         }
         
-        NSLog("Starting ping.")
         let start = Date()
         let startTimestamp = ProcessInfo.processInfo.systemUptime
         socket?.sendPing { error in
             // Calls back on delegate queue / rootQueue / underlyingQueue
+            var response: PingResponse
             if let error = error {
-                NSLog("Ping error: \(error)")
-                queue.async {
-                    onResponse(.error(error))
-                }
+                response = .error(error)
                 // TODO: What to do with failed ping? Configure for failure, auto retry, or stop pinging?
             } else {
                 let end = Date()
                 let endTimestamp = ProcessInfo.processInfo.systemUptime
                 let pong = PingResponse.Pong(start: start, end: end, latency: endTimestamp - startTimestamp)
-                NSLog("Pong received: \(pong)")
-                queue.async {
-                    onResponse(.pong(pong))
-                }
+                response = .pong(pong)
+            }
+            self.eventMonitor?.request(self, didPingWithResponse: response)
+            queue.async {
+                onResponse(response)
             }
         }
     }
     
-    func startTimedPing() {
+    func startTimedPing(timeInterval: TimeInterval) {
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             
@@ -1694,12 +1696,12 @@ public final class WebSocketRequest: Request {
             self.sendPing(respondingOn: self.underlyingQueue) { response in
                 guard case .pong = response else { return }
                 
-                self.startTimedPing()
+                self.startTimedPing(timeInterval: timeInterval)
             }
         }
         
         socketMutableState.pingTimerItem = item
-        underlyingQueue.asyncAfter(deadline: .now() + 0.01, execute: item)
+        underlyingQueue.asyncAfter(deadline: .now() + timeInterval, execute: item)
     }
     
     func cancelTimedPing() {

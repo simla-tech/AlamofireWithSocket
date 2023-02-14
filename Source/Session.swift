@@ -465,11 +465,13 @@ open class Session {
     @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
     open func websocketRequest(_ convertible: URLRequestConvertible,
                                protocol: String? = nil,
+                               pingTimeInterval: TimeInterval? = nil,
                                maximumMessageSize: Int = 1_048_576,
                                interceptor: RequestInterceptor? = nil) -> WebSocketRequest {
         let request = WebSocketRequest(convertible: convertible,
                                        protocol: `protocol`,
                                        maximumMessageSize: maximumMessageSize,
+                                       pingTimeInterval: pingTimeInterval,
                                        underlyingQueue: rootQueue,
                                        serializationQueue: serializationQueue,
                                        eventMonitor: eventMonitor,

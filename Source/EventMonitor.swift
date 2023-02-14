@@ -218,6 +218,11 @@ public protocol EventMonitor {
 
     /// Event called when a `DownloadRequest` calls a `DownloadResponseSerializer` and creates a generic `DownloadResponse<Value, AFError>`
     func request<Value>(_ request: DownloadRequest, didParseResponse response: DownloadResponse<Value, AFError>)
+    
+    // MARK: WebSocketRequest Events
+    @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+    func request(_ request: WebSocketRequest, didPingWithResponse response: WebSocketRequest.PingResponse)
+
 }
 
 extension EventMonitor {
@@ -306,6 +311,8 @@ extension EventMonitor {
                         withResult result: Request.ValidationResult) {}
     public func request(_ request: DownloadRequest, didParseResponse response: DownloadResponse<URL?, AFError>) {}
     public func request<Value>(_ request: DownloadRequest, didParseResponse response: DownloadResponse<Value, AFError>) {}
+    @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+    public func request(_ request: WebSocketRequest, didPingWithResponse response: WebSocketRequest.PingResponse) {}
 }
 
 /// An `EventMonitor` which can contain multiple `EventMonitor`s and calls their methods on their queues.
@@ -566,6 +573,12 @@ public final class CompositeEventMonitor: EventMonitor {
     public func request<Value>(_ request: DownloadRequest, didParseResponse response: DownloadResponse<Value, AFError>) {
         performEvent { $0.request(request, didParseResponse: response) }
     }
+    
+    @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+    public func request(_ request: WebSocketRequest, didPingWithResponse response: WebSocketRequest.PingResponse) {
+        performEvent { $0.request(request, didPingWithResponse: response) }
+    }
+    
 }
 
 /// `EventMonitor` that allows optional closures to be set to receive events.
